@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dgii_postgres
+    environment:
+      POSTGRES_DB: dgii_db
+      POSTGRES_USER: dgii_user
+      POSTGRES_PASSWORD: dgii_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dgii_user -d dgii_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: src/DGII.API/Dockerfile
+    container_name: dgii_backend
+    ports:
+      - "5002:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=dgii_db;Username=dgii_user;Password=dgii_pass
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dgii_frontend
+    ports:
+      - "3002:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5002/api
+      - API_URL=http://backend:8080/api
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
